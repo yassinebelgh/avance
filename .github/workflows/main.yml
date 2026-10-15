@@ -24,29 +24,35 @@ jobs:
         with:
           gradle-version: "9.3.1"
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android 36 SDK packages
+      - name: Accept Android SDK licenses and install components
         run: |
-          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
       - name: Create required env files
         run: |
           echo "GEMINI_API_KEY=placeholder" > .env.example
-          echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" > .env
+          KEY="${{ secrets.GEMINI_API_KEY }}"
+          if [ -z "$KEY" ]; then
+            KEY="placeholder"
+          fi
+          echo "GEMINI_API_KEY=$KEY" > .env
 
-      - name: Create debug keystore
+      - name: Prepare debug keystore
         run: |
-          keytool -genkeypair -v \
-            -keystore debug.keystore \
-            -storepass android \
-            -alias androiddebugkey \
-            -keypass android \
-            -dname "CN=Android Debug,O=Android,C=US" \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000
+          if [ -f debug.keystore.base64 ]; then
+            base64 -d debug.keystore.base64 > debug.keystore
+          else
+            keytool -genkeypair -v \
+              -keystore debug.keystore \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -dname "CN=Android Debug,O=Android,C=US" \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000
+          fi
 
       - name: Build debug APK
         run: gradle :app:assembleDebug --stacktrace --info
